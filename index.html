@@ -1017,84 +1017,6 @@ function renderPagos(){
       +'<div class="tm"><span>'+fmt(p.fecha)+'</span><span>'+p.od+'</span><span>'+p.paciente+'</span><span>'+(p.forma||'--')+'</span><span>'+p.tipo+'</span></div></div>';
   }).join('');
   el.innerHTML=h;
-  // Aplicar credito button
-  var btnCred=$$('btnAplicarCred');
-  if(btnCred){
-    btnCred.onclick=async function(){
-      var crs=_c.filter(function(x){return x.odontologo===od&&x.paciente===pac&&x.tipo==='paciente'&&x.saldo>0;});
-      if(!crs.length){toast('No hay credito disponible',1);return;}
-      var totalCredDisp=crs.reduce(function(s,x){return s+x.saldo;},0);
-      if(!confirm('Aplicar '+pes(totalCredDisp)+' de credito a los trabajos con saldo?'))return;
-      // Apply credit to trabajos sorted by saldo ascending
-      var conSaldo=_t.filter(function(t){return t.odontologo===od&&t.paciente===pac&&saldoT(t)>0;});
-      conSaldo.sort(function(a,b){return saldoT(a)-saldoT(b);});
-      var fecha=hoy();
-      var credId=genPagoId(fecha);
-      var restante=totalCredDisp;
-      for(var i=0;i<conSaldo.length;i++){
-        if(restante<=0)break;
-        var t=conSaldo[i],apl=Math.min(saldoT(t),restante);
-        t.pagos=t.pagos||[];
-        t.pagos.push({pagoId:credId,fecha:fecha,importe:apl,forma:'Credito',tipo:'Credito Paciente'});
-        restante-=apl;
-        await svT(t);
-      }
-      // Deduct from credits
-      for(var j=0;j<crs.length;j++){
-        var cr=crs[j];
-        var deduct=Math.min(cr.saldo,totalCredDisp-restante>0?totalCredDisp-restante:cr.saldo);
-        if(deduct<=0)break;
-        cr.saldo-=deduct;
-        cr.aplicaciones=cr.aplicaciones||[];
-        cr.aplicaciones.push({fecha:fecha,importe:deduct});
-        await svC(cr);
-      }
-      toast('Credito de '+pes(totalCredDisp-restante)+' aplicado correctamente');
-      renderPend();renderTodos();renderPagos();renderCreditos();badges();
-      renderFichaPaciente();
-    };
-  }
-
-  // Pago global paciente button
-  var btnPg=$$('btnPgPac');
-  if(btnPg){
-    btnPg.onclick=async function(){
-      var imp=parseFloat($$('pgPacImp').value);
-      if(!imp||imp<=0){toast('Ingresa un importe',1);return;}
-      var fp=$$('pgPacFP').value, fecha=$$('pgPacFecha').value;
-      // Get trabajos with saldo, sorted by saldo ascending (smaller first)
-      var conSaldo=_t.filter(function(t){return t.odontologo===od&&t.paciente===pac&&saldoT(t)>0;});
-      conSaldo.sort(function(a,b){return saldoT(a)-saldoT(b);});
-      var restante=imp;
-      var pacPgId=genPagoId(fecha);
-      for(var i=0;i<conSaldo.length;i++){
-        if(restante<=0)break;
-        var t=conSaldo[i], apl=Math.min(saldoT(t),restante);
-        t.pagos=t.pagos||[];
-        t.pagos.push({pagoId:pacPgId,fecha:fecha,importe:apl,forma:fp,tipo:'Pago Paciente'});
-        restante-=apl;
-        await svT(t);
-      }
-      if(restante>0){
-        var excExist=_c.find(function(x){return x.odontologo===od&&x.paciente===pac&&x.tipo==='paciente'&&x.saldo>0;});
-        if(excExist){excExist.importe+=restante;excExist.saldo+=restante;await svC(excExist);}
-        else{var cr={id:'CR-'+Date.now(),fecha:fecha,odontologo:od,paciente:pac,tipo:'paciente',importe:restante,saldo:restante,forma:fp,observaciones:'Sobrante de pago paciente',aplicaciones:[]};await svC(cr);}
-        toast('Pago aplicado. Sobrante de '+pes(restante)+' -> credito de '+pac);
-      } else {
-        toast('Pago de '+pes(imp)+' aplicado correctamente');
-      }
-      renderPend();renderTodos();renderPagos();renderCreditos();badges();
-      renderFichaPaciente();
-    };
-  }
-  // Add click handlers to trabajo rows
-  el.querySelectorAll('.pac-row').forEach(function(row){
-    row.addEventListener('click',function(){
-      var tid=this.dataset.id;
-      showTab('todos',document.querySelector("nav button:nth-child(3)"));
-      setTimeout(function(){verDetalle(tid);},200);
-    });
-  });
 }
 
 // ── MODAL DETALLE ──
@@ -1715,6 +1637,86 @@ function renderFichaPaciente(){
   }
 
   el.innerHTML=h;
+
+  // Aplicar credito button
+  var btnCred=$$('btnAplicarCred');
+  if(btnCred){
+    btnCred.onclick=function(){
+      var crs=_c.filter(function(x){return x.odontologo===od&&x.paciente===pac&&x.tipo==='paciente'&&x.saldo>0;});
+      if(!crs.length){toast('No hay credito disponible',1);return;}
+      var totalCredDisp=crs.reduce(function(s,x){return s+x.saldo;},0);
+      pedirConfirmacion('Aplicar '+pes(totalCredDisp)+' de credito a los trabajos con saldo?',async function(){
+        // Apply credit to trabajos sorted by saldo ascending
+        var conSaldo=_t.filter(function(t){return t.odontologo===od&&t.paciente===pac&&saldoT(t)>0;});
+        conSaldo.sort(function(a,b){return saldoT(a)-saldoT(b);});
+        var fecha=hoy();
+        var credId=genPagoId(fecha);
+        var restante=totalCredDisp;
+        for(var i=0;i<conSaldo.length;i++){
+          if(restante<=0)break;
+          var t=conSaldo[i],apl=Math.min(saldoT(t),restante);
+          t.pagos=t.pagos||[];
+          t.pagos.push({pagoId:credId,fecha:fecha,importe:apl,forma:'Credito',tipo:'Credito Paciente'});
+          restante-=apl;
+          await svT(t);
+        }
+        // Deduct from credits
+        for(var j=0;j<crs.length;j++){
+          var cr=crs[j];
+          var deduct=Math.min(cr.saldo,totalCredDisp-restante>0?totalCredDisp-restante:cr.saldo);
+          if(deduct<=0)break;
+          cr.saldo-=deduct;
+          cr.aplicaciones=cr.aplicaciones||[];
+          cr.aplicaciones.push({fecha:fecha,importe:deduct});
+          await svC(cr);
+        }
+        toast('Credito de '+pes(totalCredDisp-restante)+' aplicado correctamente');
+        renderPend();renderTodos();renderPagos();renderCreditos();badges();
+        renderFichaPaciente();
+      },'Aplicar credito');
+    };
+  }
+
+  // Pago global paciente button
+  var btnPg=$$('btnPgPac');
+  if(btnPg){
+    btnPg.onclick=async function(){
+      var imp=parseFloat($$('pgPacImp').value);
+      if(!imp||imp<=0){toast('Ingresa un importe',1);return;}
+      var fp=$$('pgPacFP').value, fecha=$$('pgPacFecha').value;
+      // Get trabajos with saldo, sorted by saldo ascending (smaller first)
+      var conSaldo=_t.filter(function(t){return t.odontologo===od&&t.paciente===pac&&saldoT(t)>0;});
+      conSaldo.sort(function(a,b){return saldoT(a)-saldoT(b);});
+      var restante=imp;
+      var pacPgId=genPagoId(fecha);
+      for(var i=0;i<conSaldo.length;i++){
+        if(restante<=0)break;
+        var t=conSaldo[i], apl=Math.min(saldoT(t),restante);
+        t.pagos=t.pagos||[];
+        t.pagos.push({pagoId:pacPgId,fecha:fecha,importe:apl,forma:fp,tipo:'Pago Paciente'});
+        restante-=apl;
+        await svT(t);
+      }
+      if(restante>0){
+        var excExist=_c.find(function(x){return x.odontologo===od&&x.paciente===pac&&x.tipo==='paciente'&&x.saldo>0;});
+        if(excExist){excExist.importe+=restante;excExist.saldo+=restante;await svC(excExist);}
+        else{var cr={id:'CR-'+Date.now(),fecha:fecha,odontologo:od,paciente:pac,tipo:'paciente',importe:restante,saldo:restante,forma:fp,observaciones:'Sobrante de pago paciente',aplicaciones:[]};await svC(cr);}
+        toast('Pago aplicado. Sobrante de '+pes(restante)+' -> credito de '+pac);
+      } else {
+        toast('Pago de '+pes(imp)+' aplicado correctamente');
+      }
+      renderPend();renderTodos();renderPagos();renderCreditos();badges();
+      renderFichaPaciente();
+    };
+  }
+  // Add click handlers to trabajo rows
+  el.querySelectorAll('.pac-row').forEach(function(row){
+    row.addEventListener('click',function(){
+      var tid=this.dataset.id;
+      showTab('todos',document.querySelector("nav button:nth-child(3)"));
+      setTimeout(function(){verDetalle(tid);},200);
+    });
+  });
 }
 
 function genPagoId(fecha){
