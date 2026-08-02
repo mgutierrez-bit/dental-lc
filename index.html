@@ -1546,17 +1546,21 @@ function renderFichaPaciente(){
     +'</div>';
   h+='</div>';
 
-  // Pago global del paciente
-  if(totalSaldo>0){
+  // Pago global del paciente (disponible aunque no tenga saldo: se guarda como credito a favor)
+  if(trabajos.length>0){
     h+='<div class="card pgf">';
     h+='<div class="tit">Registrar pago del paciente</div>';
-    h+='<div style="font-size:13px;color:var(--mu);margin-bottom:12px">Se cancelan los trabajos de menor saldo primero. El sobrante queda como credito.</div>';
+    if(totalSaldo>0){
+      h+='<div style="font-size:13px;color:var(--mu);margin-bottom:12px">Se cancelan los trabajos de menor saldo primero. El sobrante queda como credito.</div>';
+    } else {
+      h+='<div style="font-size:13px;color:var(--mu);margin-bottom:12px">Este paciente no tiene saldo pendiente. El importe que cargues se registra directamente como credito a favor.</div>';
+    }
     h+='<div class="fr">';
     h+='<div class="fi"><label>Importe ($)</label><input type="number" id="pgPacImp" placeholder="0"></div>';
     h+='<div class="fi"><label>Forma de pago</label><select id="pgPacFP"><option>Efectivo</option><option>Transferencia</option><option>Dolares</option><option>Cheque</option></select></div>';
     h+='</div>';
     h+='<div class="fi" style="margin-top:10px"><label>Fecha</label><input type="date" id="pgPacFecha" value="'+hoy()+'"></div>';
-    h+='<button class="btn bp" style="margin-top:10px" id="btnPgPac">Aplicar pago y cancelar trabajos</button>';
+    h+='<button class="btn bp" style="margin-top:10px" id="btnPgPac">'+(totalSaldo>0?'Aplicar pago y cancelar trabajos':'Registrar pago a favor del paciente')+'</button>';
     h+='</div>';
   }
 
